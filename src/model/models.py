@@ -19,7 +19,8 @@ class PixelNeRFNet(torch.nn.Module):
         """
         super().__init__()
         self.encoder = make_encoder(conf["encoder"])
-        self.use_encoder = conf.get_bool("use_encoder", True)  # Image features?
+        self.use_encoder = conf.get_bool("use_encoder",
+                                         True)  # Image features?
 
         self.use_xyz = conf.get_bool("use_xyz", False)
 
@@ -36,8 +37,8 @@ class PixelNeRFNet(torch.nn.Module):
         )
         self.use_code = conf.get_bool("use_code", False)  # Positional encoding
         self.use_code_viewdirs = conf.get_bool(
-            "use_code_viewdirs", True
-        )  # Positional encoding applies to viewdirs
+            "use_code_viewdirs",
+            True)  # Positional encoding applies to viewdirs
 
         # Enable view directions
         self.use_viewdirs = conf.get_bool("use_viewdirs", False)
@@ -61,17 +62,23 @@ class PixelNeRFNet(torch.nn.Module):
 
         if self.use_global_encoder:
             # Global image feature
-            self.global_encoder = ImageEncoder.from_conf(conf["global_encoder"])
+            self.global_encoder = ImageEncoder.from_conf(
+                conf["global_encoder"])
             self.global_latent_size = self.global_encoder.latent_size
             d_latent += self.global_latent_size
 
         d_out = 4
 
         self.latent_size = self.encoder.latent_size
-        self.mlp_coarse = make_mlp(conf["mlp_coarse"], d_in, d_latent, d_out=d_out)
-        self.mlp_fine = make_mlp(
-            conf["mlp_fine"], d_in, d_latent, d_out=d_out, allow_empty=True
-        )
+        self.mlp_coarse = make_mlp(conf["mlp_coarse"],
+                                   d_in,
+                                   d_latent,
+                                   d_out=d_out)
+        self.mlp_fine = make_mlp(conf["mlp_fine"],
+                                 d_in,
+                                 d_latent,
+                                 d_out=d_out,
+                                 allow_empty=True)
         # Note: this is world -> camera, and bottom row is omitted
         self.register_buffer("poses", torch.empty(1, 3, 4), persistent=False)
         self.register_buffer("image_shape", torch.empty(2), persistent=False)
@@ -100,8 +107,7 @@ class PixelNeRFNet(torch.nn.Module):
         if len(images.shape) == 5:
             assert len(poses.shape) == 4
             assert poses.size(1) == images.size(
-                1
-            )  # Be consistent with NS = num input views
+                1)  # Be consistent with NS = num input views
             self.num_views_per_obj = images.size(1)
             images = images.reshape(-1, *images.shape[2:])
             poses = poses.reshape(-1, 4, 4)
@@ -159,9 +165,8 @@ class PixelNeRFNet(torch.nn.Module):
 
             # Transform query points into the camera spaces of the input views
             xyz = repeat_interleave(xyz, NS)  # (SB*NS, B, 3)
-            xyz_rot = torch.matmul(self.poses[:, None, :3, :3], xyz.unsqueeze(-1))[
-                ..., 0
-            ]
+            xyz_rot = torch.matmul(self.poses[:, None, :3, :3],
+                                   xyz.unsqueeze(-1))[..., 0]
             xyz = xyz_rot + self.poses[:, None, :3, 3]
 
             if self.d_in > 0:
@@ -173,7 +178,8 @@ class PixelNeRFNet(torch.nn.Module):
                         z_feature = xyz.reshape(-1, 3)  # (SB*B, 3)
                 else:
                     if self.normalize_z:
-                        z_feature = -xyz_rot[..., 2].reshape(-1, 1)  # (SB*B, 1)
+                        z_feature = -xyz_rot[..., 2].reshape(-1,
+                                                             1)  # (SB*B, 1)
                     else:
                         z_feature = -xyz[..., 2].reshape(-1, 1)  # (SB*B, 1)
 
@@ -186,14 +192,13 @@ class PixelNeRFNet(torch.nn.Module):
                     assert viewdirs is not None
                     # Viewdirs to input view space
                     viewdirs = viewdirs.reshape(SB, B, 3, 1)
-                    viewdirs = repeat_interleave(viewdirs, NS)  # (SB*NS, B, 3, 1)
-                    viewdirs = torch.matmul(
-                        self.poses[:, None, :3, :3], viewdirs
-                    )  # (SB*NS, B, 3, 1)
+                    viewdirs = repeat_interleave(viewdirs,
+                                                 NS)  # (SB*NS, B, 3, 1)
+                    viewdirs = torch.matmul(self.poses[:, None, :3, :3],
+                                            viewdirs)  # (SB*NS, B, 3, 1)
                     viewdirs = viewdirs.reshape(-1, 3)  # (SB*B, 3)
-                    z_feature = torch.cat(
-                        (z_feature, viewdirs), dim=1
-                    )  # (SB*B, 4 or 6)
+                    z_feature = torch.cat((z_feature, viewdirs),
+                                          dim=1)  # (SB*B, 4 or 6)
 
                 if self.use_code and self.use_code_viewdirs:
                     # Positional encoding (with viewdirs)
@@ -204,21 +209,18 @@ class PixelNeRFNet(torch.nn.Module):
             if self.use_encoder:
                 # Grab encoder's latent code.
                 uv = -xyz[:, :, :2] / xyz[:, :, 2:]  # (SB, B, 2)
-                uv *= repeat_interleave(
-                    self.focal.unsqueeze(1), NS if self.focal.shape[0] > 1 else 1
-                )
+                uv *= repeat_interleave(self.focal.unsqueeze(1),
+                                        NS if self.focal.shape[0] > 1 else 1)
                 uv += repeat_interleave(
-                    self.c.unsqueeze(1), NS if self.c.shape[0] > 1 else 1
-                )  # (SB*NS, B, 2)
+                    self.c.unsqueeze(1),
+                    NS if self.c.shape[0] > 1 else 1)  # (SB*NS, B, 2)
                 latent = self.encoder.index(
-                    uv, None, self.image_shape
-                )  # (SB * NS, latent, B)
+                    uv, None, self.image_shape)  # (SB * NS, latent, B)
 
                 if self.stop_encoder_grad:
                     latent = latent.detach()
                 latent = latent.transpose(1, 2).reshape(
-                    -1, self.latent_size
-                )  # (SB * NS * B, latent)
+                    -1, self.latent_size)  # (SB * NS * B, latent)
 
                 if self.d_in == 0:
                     # z_feature not needed
@@ -274,9 +276,8 @@ class PixelNeRFNet(torch.nn.Module):
         # TODO: make backups
         if opt_init and not args.resume:
             return
-        ckpt_name = (
-            "pixel_nerf_init" if opt_init or not args.resume else "pixel_nerf_latest"
-        )
+        ckpt_name = ("pixel_nerf_init"
+                     if opt_init or not args.resume else "pixel_nerf_latest")
         model_path = "%s/%s/%s" % (args.checkpoints_path, args.name, ckpt_name)
 
         if device is None:
@@ -284,17 +285,16 @@ class PixelNeRFNet(torch.nn.Module):
 
         if os.path.exists(model_path):
             print("Load", model_path)
-            self.load_state_dict(
-                torch.load(model_path, map_location=device), strict=strict
-            )
+            self.load_state_dict(torch.load(model_path, map_location=device),
+                                 strict=strict)
         elif not opt_init:
-            warnings.warn(
-                (
-                    "WARNING: {} does not exist, not loaded!! Model will be re-initialized.\n"
-                    + "If you are trying to load a pretrained model, STOP since it's not in the right place. "
-                    + "If training, unless you are startin a new experiment, please remember to pass --resume."
-                ).format(model_path)
-            )
+            warnings.warn((
+                "WARNING: {} does not exist, not loaded!! Model will be re-initialized.\n"
+                +
+                "If you are trying to load a pretrained model, STOP since it's not in the right place. "
+                +
+                "If training, unless you are startin a new experiment, please remember to pass --resume."
+            ).format(model_path))
         return self
 
     def save_weights(self, args, opt_init=False):
@@ -308,7 +308,8 @@ class PixelNeRFNet(torch.nn.Module):
         backup_name = "pixel_nerf_init_backup" if opt_init else "pixel_nerf_backup"
 
         ckpt_path = osp.join(args.checkpoints_path, args.name, ckpt_name)
-        ckpt_backup_path = osp.join(args.checkpoints_path, args.name, backup_name)
+        ckpt_backup_path = osp.join(args.checkpoints_path, args.name,
+                                    backup_name)
 
         if osp.exists(ckpt_path):
             copyfile(ckpt_path, ckpt_backup_path)

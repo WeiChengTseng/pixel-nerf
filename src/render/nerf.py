@@ -26,9 +26,10 @@ class _RenderWrapper(torch.nn.Module):
                 torch.zeros(0, device=rays.device),
             )
 
-        outputs = self.renderer(
-            self.net, rays, want_weights=want_weights and not self.simple_output
-        )
+        outputs = self.renderer(self.net,
+                                rays,
+                                want_weights=want_weights
+                                and not self.simple_output)
         if self.simple_output:
             if self.renderer.using_fine:
                 rgb = outputs.fine.rgb
@@ -58,18 +59,17 @@ class NeRFRenderer(torch.nn.Module):
     sched[1] is list of coarse sample numbers,
     sched[2] is list of fine sample numbers
     """
-
     def __init__(
-        self,
-        n_coarse=128,
-        n_fine=0,
-        n_fine_depth=0,
-        noise_std=0.0,
-        depth_std=0.01,
-        eval_batch_size=100000,
-        white_bkgd=False,
-        lindisp=False,
-        sched=None,  # ray sampling schedule for coarse and fine rays
+            self,
+            n_coarse=128,
+            n_fine=0,
+            n_fine_depth=0,
+            noise_std=0.0,
+            depth_std=0.01,
+            eval_batch_size=100000,
+            white_bkgd=False,
+            lindisp=False,
+            sched=None,  # ray sampling schedule for coarse and fine rays
     ):
         super().__init__()
         self.n_coarse = n_coarse
@@ -88,12 +88,12 @@ class NeRFRenderer(torch.nn.Module):
         self.sched = sched
         if sched is not None and len(sched) == 0:
             self.sched = None
-        self.register_buffer(
-            "iter_idx", torch.tensor(0, dtype=torch.long), persistent=True
-        )
-        self.register_buffer(
-            "last_sched", torch.tensor(0, dtype=torch.long), persistent=True
-        )
+        self.register_buffer("iter_idx",
+                             torch.tensor(0, dtype=torch.long),
+                             persistent=True)
+        self.register_buffer("last_sched",
+                             torch.tensor(0, dtype=torch.long),
+                             persistent=True)
 
     def sample_coarse(self, rays):
         """
@@ -106,13 +106,15 @@ class NeRFRenderer(torch.nn.Module):
 
         step = 1.0 / self.n_coarse
         B = rays.shape[0]
-        z_steps = torch.linspace(0, 1 - step, self.n_coarse, device=device)  # (Kc)
+        z_steps = torch.linspace(0, 1 - step, self.n_coarse,
+                                 device=device)  # (Kc)
         z_steps = z_steps.unsqueeze(0).repeat(B, 1)  # (B, Kc)
         z_steps += torch.rand_like(z_steps) * step
         if not self.lindisp:  # Use linear sampling in depth space
             return near * (1 - z_steps) + far * z_steps  # (B, Kf)
         else:  # Use linear sampling in disparity space
-            return 1 / (1 / near * (1 - z_steps) + 1 / far * z_steps)  # (B, Kf)
+            return 1 / (1 / near *
+                        (1 - z_steps) + 1 / far * z_steps)  # (B, Kf)
 
         # Use linear sampling in depth space
         return near * (1 - z_steps) + far * z_steps  # (B, Kc)
@@ -132,9 +134,10 @@ class NeRFRenderer(torch.nn.Module):
         cdf = torch.cumsum(pdf, -1)  # (B, Kc)
         cdf = torch.cat([torch.zeros_like(cdf[:, :1]), cdf], -1)  # (B, Kc+1)
 
-        u = torch.rand(
-            B, self.n_fine - self.n_fine_depth, dtype=torch.float32, device=device
-        )  # (B, Kf)
+        u = torch.rand(B,
+                       self.n_fine - self.n_fine_depth,
+                       dtype=torch.float32,
+                       device=device)  # (B, Kf)
         inds = torch.searchsorted(cdf, u, right=True).float() - 1.0  # (B, Kf)
         inds = torch.clamp_min(inds, 0.0)
 
@@ -144,7 +147,8 @@ class NeRFRenderer(torch.nn.Module):
         if not self.lindisp:  # Use linear sampling in depth space
             z_samp = near * (1 - z_steps) + far * z_steps  # (B, Kf)
         else:  # Use linear sampling in disparity space
-            z_samp = 1 / (1 / near * (1 - z_steps) + 1 / far * z_steps)  # (B, Kf)
+            z_samp = 1 / (1 / near *
+                          (1 - z_steps) + 1 / far * z_steps)  # (B, Kf)
         return z_samp
 
     def sample_fine_depth(self, rays, depth):
@@ -182,23 +186,26 @@ class NeRFRenderer(torch.nn.Module):
             deltas = torch.cat([deltas, delta_inf], -1)  # (B, K)
 
             # (B, K, 3)
-            points = rays[:, None, :3] + z_samp.unsqueeze(2) * rays[:, None, 3:6]
+            points = rays[:,
+                          None, :3] + z_samp.unsqueeze(2) * rays[:, None, 3:6]
             points = points.reshape(-1, 3)  # (B*K, 3)
 
-            use_viewdirs = hasattr(model, "use_viewdirs") and model.use_viewdirs
+            use_viewdirs = hasattr(model,
+                                   "use_viewdirs") and model.use_viewdirs
 
             val_all = []
             if sb > 0:
                 points = points.reshape(
-                    sb, -1, 3
-                )  # (SB, B'*K, 3) B' is real ray batch size
+                    sb, -1, 3)  # (SB, B'*K, 3) B' is real ray batch size
                 eval_batch_size = (self.eval_batch_size - 1) // sb + 1
                 eval_batch_dim = 1
             else:
                 eval_batch_size = self.eval_batch_size
                 eval_batch_dim = 0
 
-            split_points = torch.split(points, eval_batch_size, dim=eval_batch_dim)
+            split_points = torch.split(points,
+                                       eval_batch_size,
+                                       dim=eval_batch_dim)
             if use_viewdirs:
                 dim1 = K
                 viewdirs = rays[:, None, 3:6].expand(-1, dim1, -1)  # (B, K, 3)
@@ -206,9 +213,9 @@ class NeRFRenderer(torch.nn.Module):
                     viewdirs = viewdirs.reshape(sb, -1, 3)  # (SB, B'*K, 3)
                 else:
                     viewdirs = viewdirs.reshape(-1, 3)  # (B*K, 3)
-                split_viewdirs = torch.split(
-                    viewdirs, eval_batch_size, dim=eval_batch_dim
-                )
+                split_viewdirs = torch.split(viewdirs,
+                                             eval_batch_size,
+                                             dim=eval_batch_dim)
                 for pnts, dirs in zip(split_points, split_viewdirs):
                     val_all.append(model(pnts, coarse=coarse, viewdirs=dirs))
             else:
@@ -230,8 +237,8 @@ class NeRFRenderer(torch.nn.Module):
             deltas = None
             sigmas = None
             alphas_shifted = torch.cat(
-                [torch.ones_like(alphas[:, :1]), 1 - alphas + 1e-10], -1
-            )  # (B, K+1) = [1, a1, a2, ...]
+                [torch.ones_like(alphas[:, :1]), 1 - alphas + 1e-10],
+                -1)  # (B, K+1) = [1, a1, a2, ...]
             T = torch.cumprod(alphas_shifted, -1)  # (B)
             weights = alphas * T[:, :-1]  # (B, K)
             alphas = None
@@ -250,7 +257,10 @@ class NeRFRenderer(torch.nn.Module):
             )
 
     def forward(
-        self, model, rays, want_weights=False,
+        self,
+        model,
+        rays,
+        want_weights=False,
     ):
         """
         :model nerf model, should return (SB, B, (r, g, b, sigma))
@@ -273,38 +283,52 @@ class NeRFRenderer(torch.nn.Module):
 
             z_coarse = self.sample_coarse(rays)  # (B, Kc)
             coarse_composite = self.composite(
-                model, rays, z_coarse, coarse=True, sb=superbatch_size,
+                model,
+                rays,
+                z_coarse,
+                coarse=True,
+                sb=superbatch_size,
             )
 
-            outputs = DotMap(
-                coarse=self._format_outputs(
-                    coarse_composite, superbatch_size, want_weights=want_weights,
-                ),
-            )
+            outputs = DotMap(coarse=self._format_outputs(
+                coarse_composite,
+                superbatch_size,
+                want_weights=want_weights,
+            ), )
 
             if self.using_fine:
                 all_samps = [z_coarse]
                 if self.n_fine - self.n_fine_depth > 0:
                     all_samps.append(
-                        self.sample_fine(rays, coarse_composite[0].detach())
-                    )  # (B, Kf - Kfd)
+                        self.sample_fine(
+                            rays,
+                            coarse_composite[0].detach()))  # (B, Kf - Kfd)
                 if self.n_fine_depth > 0:
                     all_samps.append(
-                        self.sample_fine_depth(rays, coarse_composite[2])
-                    )  # (B, Kfd)
+                        self.sample_fine_depth(
+                            rays, coarse_composite[2]))  # (B, Kfd)
                 z_combine = torch.cat(all_samps, dim=-1)  # (B, Kc + Kf)
                 z_combine_sorted, argsort = torch.sort(z_combine, dim=-1)
                 fine_composite = self.composite(
-                    model, rays, z_combine_sorted, coarse=False, sb=superbatch_size,
+                    model,
+                    rays,
+                    z_combine_sorted,
+                    coarse=False,
+                    sb=superbatch_size,
                 )
                 outputs.fine = self._format_outputs(
-                    fine_composite, superbatch_size, want_weights=want_weights,
+                    fine_composite,
+                    superbatch_size,
+                    want_weights=want_weights,
                 )
 
             return outputs
 
     def _format_outputs(
-        self, rendered_outputs, superbatch_size, want_weights=False,
+        self,
+        rendered_outputs,
+        superbatch_size,
+        want_weights=False,
     ):
         weights, rgb, depth = rendered_outputs
         if superbatch_size > 0:
@@ -324,10 +348,8 @@ class NeRFRenderer(torch.nn.Module):
         if self.sched is None:
             return
         self.iter_idx += steps
-        while (
-            self.last_sched.item() < len(self.sched[0])
-            and self.iter_idx.item() >= self.sched[0][self.last_sched.item()]
-        ):
+        while (self.last_sched.item() < len(self.sched[0]) and
+               self.iter_idx.item() >= self.sched[0][self.last_sched.item()]):
             self.n_coarse = self.sched[1][self.last_sched.item()]
             self.n_fine = self.sched[2][self.last_sched.item()]
             print(
@@ -339,7 +361,11 @@ class NeRFRenderer(torch.nn.Module):
             self.last_sched += 1
 
     @classmethod
-    def from_conf(cls, conf, white_bkgd=False, lindisp=False, eval_batch_size=100000):
+    def from_conf(cls,
+                  conf,
+                  white_bkgd=False,
+                  lindisp=False,
+                  eval_batch_size=100000):
         return cls(
             conf.get_int("n_coarse", 128),
             conf.get_int("n_fine", 0),

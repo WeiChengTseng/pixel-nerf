@@ -7,7 +7,13 @@ import warnings
 
 
 class Trainer:
-    def __init__(self, net, train_dataset, test_dataset, args, conf, device=None):
+    def __init__(self,
+                 net,
+                 train_dataset,
+                 test_dataset,
+                 args,
+                 conf,
+                 device=None):
         self.args = args
         self.net = net
         self.train_dataset = train_dataset
@@ -48,8 +54,7 @@ class Trainer:
         self.optim = torch.optim.Adam(net.parameters(), lr=args.lr)
         if args.gamma != 1.0:
             self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
-                optimizer=self.optim, gamma=args.gamma
-            )
+                optimizer=self.optim, gamma=args.gamma)
         else:
             self.lr_scheduler = None
 
@@ -78,28 +83,22 @@ class Trainer:
             if os.path.exists(self.optim_state_path):
                 try:
                     self.optim.load_state_dict(
-                        torch.load(self.optim_state_path, map_location=device)
-                    )
+                        torch.load(self.optim_state_path, map_location=device))
                 except:
-                    warnings.warn(
-                        "Failed to load optimizer state at", self.optim_state_path
-                    )
+                    warnings.warn("Failed to load optimizer state at",
+                                  self.optim_state_path)
             if self.lr_scheduler is not None and os.path.exists(
-                self.lrsched_state_path
-            ):
+                    self.lrsched_state_path):
                 self.lr_scheduler.load_state_dict(
-                    torch.load(self.lrsched_state_path, map_location=device)
-                )
+                    torch.load(self.lrsched_state_path, map_location=device))
             if os.path.exists(self.iter_state_path):
-                self.start_iter_id = torch.load(
-                    self.iter_state_path, map_location=device
-                )["iter"]
+                self.start_iter_id = torch.load(self.iter_state_path,
+                                                map_location=device)["iter"]
             if not self.managed_weight_saving and os.path.exists(
-                self.default_net_state_path
-            ):
+                    self.default_net_state_path):
                 net.load_state_dict(
-                    torch.load(self.default_net_state_path, map_location=device)
-                )
+                    torch.load(self.default_net_state_path,
+                               map_location=device))
 
         self.visual_path = os.path.join(self.args.visual_path, self.args.name)
         self.conf = conf
@@ -136,7 +135,8 @@ class Trainer:
 
     def start(self):
         def fmt_loss_str(losses):
-            return "loss " + (" ".join(k + ":" + str(losses[k]) for k in losses))
+            return "loss " + (" ".join(k + ":" + str(losses[k])
+                                       for k in losses))
 
         def data_loop(dl):
             """
@@ -152,9 +152,9 @@ class Trainer:
 
         progress = tqdm.tqdm(bar_format="[{rate_fmt}] ")
         for epoch in range(self.num_epochs):
-            self.writer.add_scalar(
-                "lr", self.optim.param_groups[0]["lr"], global_step=step_id
-            )
+            self.writer.add_scalar("lr",
+                                   self.optim.param_groups[0]["lr"],
+                                   global_step=step_id)
 
             batch = 0
             for _ in range(self.num_epoch_repeats):
@@ -176,28 +176,32 @@ class Trainer:
                         test_data = next(test_data_iter)
                         self.net.eval()
                         with torch.no_grad():
-                            test_losses = self.eval_step(test_data, global_step=step_id)
+                            test_losses = self.eval_step(test_data,
+                                                         global_step=step_id)
                         self.net.train()
                         test_loss_str = fmt_loss_str(test_losses)
-                        self.writer.add_scalars("train", losses, global_step=step_id)
-                        self.writer.add_scalars(
-                            "test", test_losses, global_step=step_id
-                        )
-                        print("*** Eval:", "E", epoch, "B", batch, test_loss_str, " lr")
+                        self.writer.add_scalars("train",
+                                                losses,
+                                                global_step=step_id)
+                        self.writer.add_scalars("test",
+                                                test_losses,
+                                                global_step=step_id)
+                        print("*** Eval:", "E", epoch, "B", batch,
+                              test_loss_str, " lr")
 
-                    if batch % self.save_interval == 0 and (epoch > 0 or batch > 0):
+                    if batch % self.save_interval == 0 and (epoch > 0
+                                                            or batch > 0):
                         print("saving")
                         if self.managed_weight_saving:
                             self.net.save_weights(self.args)
                         else:
-                            torch.save(
-                                self.net.state_dict(), self.default_net_state_path
-                            )
-                        torch.save(self.optim.state_dict(), self.optim_state_path)
+                            torch.save(self.net.state_dict(),
+                                       self.default_net_state_path)
+                        torch.save(self.optim.state_dict(),
+                                   self.optim_state_path)
                         if self.lr_scheduler is not None:
-                            torch.save(
-                                self.lr_scheduler.state_dict(), self.lrsched_state_path
-                            )
+                            torch.save(self.lr_scheduler.state_dict(),
+                                       self.lrsched_state_path)
                         torch.save({"iter": step_id + 1}, self.iter_state_path)
                         self.extra_save_state()
 
@@ -209,13 +213,12 @@ class Trainer:
                             test_data = next(test_data_iter)
                         self.net.eval()
                         with torch.no_grad():
-                            vis, vis_vals = self.vis_step(
-                                test_data, global_step=step_id
-                            )
+                            vis, vis_vals = self.vis_step(test_data,
+                                                          global_step=step_id)
                         if vis_vals is not None:
-                            self.writer.add_scalars(
-                                "vis", vis_vals, global_step=step_id
-                            )
+                            self.writer.add_scalars("vis",
+                                                    vis_vals,
+                                                    global_step=step_id)
                         self.net.train()
                         if vis is not None:
                             import imageio
@@ -229,10 +232,8 @@ class Trainer:
                                 vis_u8,
                             )
 
-                    if (
-                        batch == self.num_total_batches - 1
-                        or batch % self.accu_grad == self.accu_grad - 1
-                    ):
+                    if (batch == self.num_total_batches - 1
+                            or batch % self.accu_grad == self.accu_grad - 1):
                         self.optim.step()
                         self.optim.zero_grad()
 
