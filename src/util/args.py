@@ -1,7 +1,6 @@
 import sys
 import os
 
-
 import argparse
 from pyhocon import ConfigFactory
 
@@ -20,13 +19,19 @@ def parse_args(
 ):
     parser = argparse.ArgumentParser()
     parser.add_argument("--conf", "-c", type=str, default=None)
-    parser.add_argument("--resume", "-r", action="store_true", help="continue training")
-    parser.add_argument(
-        "--gpu_id", type=str, default="0", help="GPU(s) to use, space delimited"
-    )
-    parser.add_argument(
-        "--name", "-n", type=str, default=default_expname, help="experiment name"
-    )
+    parser.add_argument("--resume",
+                        "-r",
+                        action="store_true",
+                        help="continue training")
+    parser.add_argument("--gpu_id",
+                        type=str,
+                        default="0",
+                        help="GPU(s) to use, space delimited")
+    parser.add_argument("--name",
+                        "-n",
+                        type=str,
+                        default=default_expname,
+                        help="experiment name")
     parser.add_argument(
         "--dataset_format",
         "-F",
@@ -42,7 +47,10 @@ def parse_args(
         help="if we want to group some experiments together",
     )
     parser.add_argument(
-        "--logs_path", type=str, default="logs", help="logs output directory",
+        "--logs_path",
+        type=str,
+        default="logs",
+        help="logs output directory",
     )
     parser.add_argument(
         "--checkpoints_path",
@@ -62,13 +70,19 @@ def parse_args(
         default=default_num_epochs,
         help="number of epochs to train for",
     )
-    parser.add_argument("--lr", type=float, default=default_lr, help="learning rate")
-    parser.add_argument(
-        "--gamma", type=float, default=default_gamma, help="learning rate decay factor"
-    )
-    parser.add_argument(
-        "--datadir", "-D", type=str, default=None, help="Dataset directory"
-    )
+    parser.add_argument("--lr",
+                        type=float,
+                        default=default_lr,
+                        help="learning rate")
+    parser.add_argument("--gamma",
+                        type=float,
+                        default=default_gamma,
+                        help="learning rate decay factor")
+    parser.add_argument("--datadir",
+                        "-D",
+                        type=str,
+                        default=None,
+                        help="Dataset directory")
     parser.add_argument(
         "--ray_batch_size",
         "-R",
@@ -82,13 +96,15 @@ def parse_args(
 
     if args.exp_group_name is not None:
         args.logs_path = os.path.join(args.logs_path, args.exp_group_name)
-        args.checkpoints_path = os.path.join(args.checkpoints_path, args.exp_group_name)
+        args.checkpoints_path = os.path.join(args.checkpoints_path,
+                                             args.exp_group_name)
         args.visual_path = os.path.join(args.visual_path, args.exp_group_name)
 
     os.makedirs(os.path.join(args.checkpoints_path, args.name), exist_ok=True)
     os.makedirs(os.path.join(args.visual_path, args.name), exist_ok=True)
 
-    PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    PROJECT_ROOT = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", ".."))
     EXPCONF_PATH = os.path.join(PROJECT_ROOT, "expconf.conf")
     expconf = ConfigFactory.parse_file(EXPCONF_PATH)
 
@@ -98,12 +114,14 @@ def parse_args(
     if args.conf is None:
         args.conf = expconf.get_string("config." + args.name, default_conf)
     if args.datadir is None:
-        args.datadir = expconf.get_string("datadir." + args.name, default_datadir)
+        args.datadir = expconf.get_string("datadir." + args.name,
+                                          default_datadir)
 
     conf = ConfigFactory.parse_file(args.conf)
 
     if args.dataset_format is None:
-        args.dataset_format = conf.get_string("data.format", default_data_format)
+        args.dataset_format = conf.get_string("data.format",
+                                              default_data_format)
 
     args.gpu_id = list(map(int, args.gpu_id.split()))
 
