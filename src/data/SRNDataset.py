@@ -11,9 +11,12 @@ class SRNDataset(torch.utils.data.Dataset):
     """
     Dataset from SRN (V. Sitzmann et al. 2020)
     """
-
     def __init__(
-        self, path, stage="train", image_size=(128, 128), world_scale=1.0,
+            self,
+            path,
+            stage="train",
+            image_size=(128, 128),
+            world_scale=1.0,
     ):
         """
         :param stage train | val | test
@@ -24,7 +27,8 @@ class SRNDataset(torch.utils.data.Dataset):
         self.base_path = path + "_" + stage
         self.dataset_name = os.path.basename(path)
 
-        print("Loading SRN dataset", self.base_path, "name:", self.dataset_name)
+        print("Loading SRN dataset", self.base_path, "name:",
+              self.dataset_name)
         self.stage = stage
         assert os.path.exists(self.base_path)
 
@@ -36,16 +40,14 @@ class SRNDataset(torch.utils.data.Dataset):
                 self.base_path = tmp
 
         self.intrins = sorted(
-            glob.glob(os.path.join(self.base_path, "*", "intrinsics.txt"))
-        )
+            glob.glob(os.path.join(self.base_path, "*", "intrinsics.txt")))
         self.image_to_tensor = get_image_to_tensor_balanced()
         self.mask_to_tensor = get_mask_to_tensor()
 
         self.image_size = image_size
         self.world_scale = world_scale
         self._coord_trans = torch.diag(
-            torch.tensor([1, -1, -1, 1], dtype=torch.float32)
-        )
+            torch.tensor([1, -1, -1, 1], dtype=torch.float32))
 
         if is_chair:
             self.z_near = 1.25
@@ -82,8 +84,7 @@ class SRNDataset(torch.utils.data.Dataset):
             mask_tensor = self.mask_to_tensor(mask)
 
             pose = torch.from_numpy(
-                np.loadtxt(pose_path, dtype=np.float32).reshape(4, 4)
-            )
+                np.loadtxt(pose_path, dtype=np.float32).reshape(4, 4))
             pose = pose @ self._coord_trans
 
             rows = np.any(mask, axis=1)
@@ -91,9 +92,8 @@ class SRNDataset(torch.utils.data.Dataset):
             rnz = np.where(rows)[0]
             cnz = np.where(cols)[0]
             if len(rnz) == 0:
-                raise RuntimeError(
-                    "ERROR: Bad image at", rgb_path, "please investigate!"
-                )
+                raise RuntimeError("ERROR: Bad image at", rgb_path,
+                                   "please investigate!")
             rmin, rmax = rnz[[0, -1]]
             cmin, cmax = cnz[[0, -1]]
             bbox = torch.tensor([cmin, rmin, cmax, rmax], dtype=torch.float32)
@@ -115,8 +115,12 @@ class SRNDataset(torch.utils.data.Dataset):
             cy *= scale
             all_bboxes *= scale
 
-            all_imgs = F.interpolate(all_imgs, size=self.image_size, mode="area")
-            all_masks = F.interpolate(all_masks, size=self.image_size, mode="area")
+            all_imgs = F.interpolate(all_imgs,
+                                     size=self.image_size,
+                                     mode="area")
+            all_masks = F.interpolate(all_masks,
+                                      size=self.image_size,
+                                      mode="area")
 
         if self.world_scale != 1.0:
             focal *= self.world_scale
